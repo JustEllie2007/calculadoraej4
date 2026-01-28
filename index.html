@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Carta de Control X̄-R</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background: #f4f6f8;
+        padding: 20px;
+    }
+    h1 {
+        margin-bottom: 5px;
+    }
+    .box {
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    textarea {
+        width: 100%;
+        height: 90px;
+        font-family: monospace;
+        font-size: 14px;
+    }
+    button {
+        padding: 10px 20px;
+        font-size: 15px;
+        cursor: pointer;
+        border: none;
+        border-radius: 6px;
+        background: #2563eb;
+        color: white;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+    th, td {
+        border: 1px solid #ccc;
+        padding: 6px;
+        text-align: center;
+    }
+    canvas {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+</style>
+</head>
+<body>
+
+<h1>Carta de Control X̄-R</h1>
+<p>Ingresa 5 mediciones por día (una fila = un día)</p>
+
+<div class="box">
+<textarea id="data">
+10.1, 10.0, 10.2, 9.9, 10.1
+10.2, 10.1, 9.8, 10.0, 10.1
+10.0, 9.9, 10.1, 10.2, 10.0
+9.8, 10.1, 10.0, 10.2, 9.9
+</textarea>
+<br><br>
+<button onclick="calcular()">Calcular</button>
+</div>
+
+<div class="box" id="resultados"></div>
+
+<canvas id="grafico" width="700" height="350"></canvas>
+
+<script>
+function calcular() {
+    const A2 = 0.577; // constante para n = 5
+    const texto = document.getElementById("data").value.trim();
+    const filas = texto.split("\n");
+
+    let medias = [];
+    let rangos = [];
+
+    filas.forEach(fila => {
+        const valores = fila.split(",").map(v => parseFloat(v));
+        const media = valores.reduce((a,b)=>a+b,0)/valores.length;
+        const rango = Math.max(...valores) - Math.min(...valores);
+        medias.push(media);
+        rangos.push(rango);
+    });
+
+    const xBarBar = medias.reduce((a,b)=>a+b,0)/medias.length;
+    const rBar = rangos.reduce((a,b)=>a+b,0)/rangos.length;
+
+    const LCS = xBarBar + A2 * rBar;
+    const LCI = xBarBar - A2 * rBar;
+
+    let html = `
+    <h3>Resultados numéricos</h3>
+    <table>
+        <tr>
+            <th>Día</th>
+            <th>Media</th>
+            <th>Rango</th>
+        </tr>`;
+
+    medias.forEach((m,i)=>{
+        html += `
+        <tr>
+            <td>${i+1}</td>
+            <td>${m.toFixed(3)}</td>
+            <td>${rangos[i].toFixed(3)}</td>
+        </tr>`;
+    });
+
+    html += `
+    </table>
+    <p><b>Media global (LC):</b> ${xBarBar.toFixed(3)}</p>
+    <p><b>Límite superior (LCS):</b> ${LCS.toFixed(3)}</p>
+    <p><b>Límite inferior (LCI):</b> ${LCI.toFixed(3)}</p>
+    `;
+
+    document.getElementById("resultados").innerHTML = html;
+
+    dibujarGrafico(medias, xBarBar, LCS, LCI);
+}
+
+function dibujarGrafico(medias, LC, LCS, LCI) {
+    const canvas = document.getElementById("grafico");
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    const padding = 50;
+    const ancho = canvas.width - 2*padding;
+    const alto = canvas.height - 2*padding;
+
+    const maxY = Math.max(...medias, LCS) + 0.05;
+    const minY = Math.min(...medias, LCI) - 0.05;
+
+    function y(valor){
+        return padding + alto*(1 - (valor-minY)/(maxY-minY));
+    }
+
+    function x(i){
+        return padding + ancho*(i/(medias.length-1));
+    }
+
+    ctx.strokeStyle = "#000";
+    ctx.beginPath();
+    ctx.moveTo(padding,padding);
+    ctx.lineTo(padding,canvas.height-padding);
+    ctx.lineTo(canvas.width-padding,canvas.height-padding);
+    ctx.stroke();
+
+    // Líneas de control
+    ctx.setLineDash([6,4]);
+    ctx.strokeStyle="red";
+    [LC,LCS,LCI].forEach(v=>{
+        ctx.beginPath();
+        ctx.moveTo(padding,y(v));
+        ctx.lineTo(canvas.width-padding,y(v));
+        ctx.stroke();
+    });
+
+    // Medias
+    ctx.setLineDash([]);
+    ctx.strokeStyle="blue";
+    ctx.beginPath();
+    medias.forEach((m,i)=>{
+        if(i===0) ctx.moveTo(x(i),y(m));
+        else ctx.lineTo(x(i),y(m));
+    });
+    ctx.stroke();
+
+    ctx.fillStyle="blue";
+    medias.forEach((m,i)=>{
+        ctx.beginPath();
+        ctx.arc(x(i),y(m),4,0,Math.PI*2);
+        ctx.fill();
+    });
+}
+</script>
+
+</body>
+</html>
